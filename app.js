@@ -1148,13 +1148,6 @@ const Settings = {
       }catch(e){ showToast('Invalid backup file'); }
     };
     reader.readAsText(file);
-  },
-  resetData(){
-    if(confirm('Are you sure you want to delete ALL data? This will reset the app to factory settings and cannot be undone.')){
-      localStorage.clear();
-      showToast('App reset. Reloading...');
-      setTimeout(()=>location.reload(), 1000);
-    }
   }
 };
 
