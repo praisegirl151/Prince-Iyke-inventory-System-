@@ -1,0 +1,15 @@
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Project temp/logs
+*.log
+*.tmp
+backup*.json
+*backup*.json
+
+# Antigravity IDE / Gemini metadata
+.gemini/
+.agents/
+.gitattributes
