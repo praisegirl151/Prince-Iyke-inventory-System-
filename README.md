@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Prince Iyke Inventory System
 
-## Getting Started
+Offline-first inventory and sales application built as a pnpm/Turborepo workspace.
 
-First, run the development server:
+## Applications
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- `apps/web`: Next.js client. Business data is cached in IndexedDB through Dexie and mutations are queued while offline.
+- `apps/backend`: TypeScript/Express API using Prisma and Neon PostgreSQL.
+
+## Local setup
+
+Install dependencies:
+
+```sh
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy the environment templates:
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+```sh
+cp apps/backend/.env.example apps/backend/.env
+cp apps/web/.env.example apps/web/.env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+In `apps/backend/.env`, set `DATABASE_URL` to the pooled Neon URL whose hostname contains `-pooler`. Set `DIRECT_URL` to the direct Neon URL without `-pooler`. Both URLs must include `sslmode=require`. Generate separate random secrets of at least 32 characters for the JWT variables.
 
-## Learn More
+Apply the checked-in database migration and start both applications:
 
-To learn more about Next.js, take a look at the following resources:
+```sh
+pnpm --filter backend prisma:deploy
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The web app runs at `http://localhost:3000`; the API defaults to `http://localhost:4000`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Create the first owner
 
-## Deploy on Vercel
+Owner registration is intentionally an API operation so an uninitialized deployment cannot expose an unrestricted setup screen indefinitely:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```sh
+curl -X POST http://localhost:4000/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"owner@example.com","password":"replace-this-password","name":"Owner","shopName":"Prince Iyke"}'
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Afterward, sign in through the web app. The owner can create individual staff accounts from Settings. Staff receive a temporary password and must replace it on first login.
+
+## Offline synchronization
+
+Product edits, sales, debt payments, and settings changes are written to IndexedDB before the UI reports success. The sync engine retries them on startup, reconnection, focus, manual request, and a foreground timer. Operation UUIDs make retries idempotent.
+
+Completed sales are retained when devices reconnect concurrently. Negative stock creates an owner reconciliation alert. Stale product or settings edits appear in the reconciliation panel instead of silently overwriting another device.
+
+Existing `sp_*` localStorage data is copied into IndexedDB once. On the first owner login, the app previews the record counts and asks before uploading the snapshot. Legacy keys are removed only after the server confirms the import.
+
+## Verification
+
+```sh
+pnpm lint
+pnpm check-types
+pnpm --filter backend test
+pnpm build
+```
+
+Do not commit `.env` files or Neon credentials.

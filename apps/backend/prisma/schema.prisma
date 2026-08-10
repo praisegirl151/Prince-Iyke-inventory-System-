@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  STAFF
+}
+enum StockMovementKind {
+  INITIAL
+  ADJUSTMENT
+  SALE
+  REVERSAL
+}
+enum SyncOperationKind {
+  CREATE
+  UPDATE
+  DELETE
+  SALE
+  DEBT_PAYMENT
+  IMPORT
+}
+enum SyncStatus {
+  APPLIED
+  CONFLICT
+  REJECTED
+}
+enum ConflictType {
+  STALE_EDIT
+  STOCK_SHORTAGE
+}
+enum ConflictStatus {
+  OPEN
+  RESOLVED
+}
+
+model Shop {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  memberships ShopMembership[]
+  products    Product[]
+  sales       Sale[]
+  debts       Debt[]
+  settings    ShopSettings?
+  operations  SyncOperation[]
+  conflicts   SyncConflict[]
+  imports     ImportBatch[]
+}
+
+model User {
+  id                 String           @id @default(uuid()) @db.Uuid
+  email              String           @unique
+  name               String
+  passwordHash       String
+  mustChangePassword Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  memberships        ShopMembership[]
+  sessions           RefreshSession[]
+  sales              Sale[]
+}
+
+model ShopMembership {
+  shopId    String   @db.Uuid
+  userId    String   @db.Uuid
+  role      Role
+  createdAt DateTime @default(now())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([shopId, userId])
+  @@index([userId])
+}
+
+model Product {
+  id        String    @id @db.Uuid
+  shopId    String    @db.Uuid
+  name      String
+  category  String    @default("")
+  unit      String
+  stock     Decimal   @default(0) @db.Decimal(18, 3)
+  lowStock  Decimal   @default(0) @db.Decimal(18, 3)
+  costMinor BigInt
+  priceMinor BigInt
+  version   Int       @default(1)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  shop      Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  movements StockMovement[]
+  saleItems SaleItem[]
+  @@index([shopId, updatedAt])
+}
+
+model StockMovement {
+  id          String            @id @default(uuid()) @db.Uuid
+  shopId      String            @db.Uuid
+  productId   String            @db.Uuid
+  saleId      String?           @db.Uuid
+  operationId String?           @unique @db.Uuid
+  kind        StockMovementKind
+  quantity    Decimal           @db.Decimal(18, 3)
+  createdAt   DateTime          @default(now())
+  product     Product           @relation(fields: [productId], references: [id])
+  sale        Sale?             @relation(fields: [saleId], references: [id])
+  @@index([shopId, createdAt])
+}
+
+model Sale {
+  id               String          @id @db.Uuid
+  shopId           String          @db.Uuid
+  staffId          String          @db.Uuid
+  invoiceNo        String
+  occurredAt       DateTime
+  paymentType      String
+  customerName     String
+  customerPhone    String          @default("")
+  customerAddress  String          @default("")
+  driver           String          @default("")
+  car              String          @default("")
+  subtotalMinor    BigInt
+  deliveryFeeMinor BigInt          @default(0)
+  discountMinor    BigInt          @default(0)
+  totalMinor       BigInt
+  amountPaidMinor  BigInt
+  balanceMinor     BigInt
+  payCashMinor     BigInt          @default(0)
+  payTransfer1Minor BigInt         @default(0)
+  payTransfer2Minor BigInt         @default(0)
+  version          Int             @default(1)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  shop             Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  staff            User            @relation(fields: [staffId], references: [id])
+  items            SaleItem[]
+  movements        StockMovement[]
+  debt             Debt?
+  @@unique([shopId, invoiceNo])
+  @@index([shopId, updatedAt])
+}
+
+model SaleItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  saleId         String  @db.Uuid
+  productId      String  @db.Uuid
+  name           String
+  unit           String
+  quantity       Decimal @db.Decimal(18, 3)
+  unitPriceMinor BigInt
+  subtotalMinor  BigInt
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product        Product @relation(fields: [productId], references: [id])
+}
+
+model Debt {
+  id                  String        @id @db.Uuid
+  shopId              String        @db.Uuid
+  saleId              String        @unique @db.Uuid
+  customerName        String
+  phone               String        @default("")
+  originalAmountMinor BigInt
+  balanceMinor        BigInt
+  occurredAt          DateTime
+  version             Int           @default(1)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  shop                 Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  sale                 Sale          @relation(fields: [saleId], references: [id])
+  payments             DebtPayment[]
+  @@index([shopId, updatedAt])
+}
+
+model DebtPayment {
+  id          String   @id @db.Uuid
+  debtId      String   @db.Uuid
+  operationId String?  @unique @db.Uuid
+  amountMinor BigInt
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+  debt        Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+}
+
+model ShopSettings {
+  shopId    String   @id @db.Uuid
+  address   String   @default("")
+  phone     String   @default("")
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+model RefreshSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model SyncOperation {
+  id            String            @id @db.Uuid
+  shopId        String            @db.Uuid
+  deviceId      String
+  userId        String            @db.Uuid
+  kind          SyncOperationKind
+  entityType    String
+  entityId      String            @db.Uuid
+  baseVersion   Int?
+  payload       Json
+  clientTime    DateTime
+  serverSequence BigInt           @default(autoincrement())
+  status        SyncStatus
+  error         String?
+  createdAt     DateTime          @default(now())
+  shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  @@unique([shopId, id])
+  @@index([shopId, serverSequence])
+}
+
+model SyncConflict {
+  id               String         @id @default(uuid()) @db.Uuid
+  shopId           String         @db.Uuid
+  operationId      String?        @db.Uuid
+  type             ConflictType
+  entityType       String
+  entityId         String         @db.Uuid
+  serverPayload    Json
+  submittedPayload Json
+  status           ConflictStatus @default(OPEN)
+  resolution       Json?
+  createdAt        DateTime       @default(now())
+  resolvedAt       DateTime?
+  shop             Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  @@index([shopId, status])
+}
+
+model ImportBatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @db.Uuid
+  fingerprint String
+  summary     Json
+  createdAt   DateTime @default(now())
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  @@unique([shopId, fingerprint])
+}
