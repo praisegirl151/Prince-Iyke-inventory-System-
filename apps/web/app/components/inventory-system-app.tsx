@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import Image from "next/image";
+import html2canvas from "html2canvas";
 import {
   debtToReceipt,
   formatGrandTotalInWords,
@@ -100,6 +101,7 @@ export function InventorySystemApp() {
     resolveConflict,
   } = useInventorySystem();
   const [showConflicts, setShowConflicts] = useState(false);
+  const [isSharingReceipt, setIsSharingReceipt] = useState(false);
 
   // --- VIEW ROLES & USER CONTROLS ---
   const activeUserObj = useMemo(() => {
@@ -733,41 +735,118 @@ export function InventorySystemApp() {
   };
 
   // --- RECEIPT SHARING ---
-  const handleShareReceipt = () => {
-    if (!currentReceipt) return;
-    const lines =
-      currentReceiptType === "sale"
-        ? currentReceipt.items
-            .map((i) => `${i.name} x${i.qty}${i.unit} — ${naira(i.subtotal)}`)
-            .join("\n")
-        : `Debt Payment towards ${currentReceipt.invoiceNo || "Invoice"}`;
+  const handleShareReceipt = async () => {
+    if (!currentReceipt || isSharingReceipt) return;
 
-    let text = `${settings.shopName || "PRINCE IYKE"}\nRC: 008855\nInvoice No: ${currentReceipt.invoiceNo || currentReceipt.id.slice(-8).toUpperCase()}\nDate: ${new Date(currentReceipt.date).toLocaleString("en-NG")}\nCustomer: ${currentReceipt.customerName}\nPhone: ${currentReceipt.customerPhone || "—"}\n\n${lines}\n\n`;
-
-    if (currentReceiptType === "sale") {
-      if (currentReceipt.deliveryFee > 0)
-        text += `Delivery Fee: ${naira(currentReceipt.deliveryFee)}\n`;
-      if (currentReceipt.discount > 0)
-        text += `Discount: -${naira(currentReceipt.discount)}\n`;
-      text += `TOTAL: ${naira(currentReceipt.total)}\n`;
-      if (currentReceipt.paymentType === "credit") {
-        text += `Paid: ${naira(currentReceipt.amountPaid)}\nBalance: ${naira(currentReceipt.balance)}\n`;
-      } else {
-        text += `PAID IN FULL (CASH)\n`;
-      }
-    } else {
-      text += `Payment Amount: ${naira(currentDebtPaymentAmount)}\n`;
-      text += `Outstanding balance: ${naira(currentReceipt.balance)}\n`;
+    const receiptElement = document.querySelector("#printArea .invoice-a4") as HTMLElement | null;
+    if (!receiptElement) {
+      showToast("Receipt preview not found");
+      return;
     }
-    text += `\nThank you for your patronage!`;
 
-    if (navigator.share) {
-      navigator.share({ title: "Receipt", text }).catch(() => {});
-    } else {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => showToast("Receipt copied — paste into WhatsApp"));
+    setIsSharingReceipt(true);
+    showToast("Generating receipt image...");
+
+    try {
+      // Clone the element to render it off-screen and avoid scrollbar/viewport cropping issues
+      const clone = receiptElement.cloneNode(true) as HTMLElement;
+      
+      // Reset styling on the clone for clean image generation
+      clone.style.position = "absolute";
+      clone.style.left = "-9999px";
+      clone.style.top = "0";
+      clone.style.width = "780px"; // standard desktop width of .invoice-a4
+      clone.style.minHeight = "auto";
+      clone.style.height = "auto";
+      clone.style.margin = "0";
+      clone.style.padding = "16px 20px";
+      clone.style.transform = "none";
+      clone.style.boxShadow = "none";
+      
+      document.body.appendChild(clone);
+
+      // Render clone to high-res canvas
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        width: 780,
+        height: clone.scrollHeight,
+      });
+
+      // Cleanup cloned element from DOM
+      document.body.removeChild(clone);
+
+      const invoiceNum =
+        currentReceipt.invoiceNo || currentReceipt.id.slice(-8).toUpperCase();
+      const fileName = `Receipt_${invoiceNum}.png`;
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          showToast("Failed to generate receipt image");
+          setIsSharingReceipt(false);
+          return;
+        }
+
+        const file = new File([blob], fileName, { type: "image/png" });
+
+        // Check if Web Share API with files is supported
+        if (
+          typeof navigator !== "undefined" &&
+          navigator.canShare &&
+          navigator.canShare({ files: [file] })
+        ) {
+          try {
+            await navigator.share({
+              title: `Receipt - ${invoiceNum}`,
+              text: `Receipt for ${currentReceipt.customerName} (Invoice #${invoiceNum}) from ${settings.shopName || "PRINCE IYKE"}`,
+              files: [file],
+            });
+            showToast("Receipt shared successfully!");
+          } catch (err: any) {
+            if (err?.name !== "AbortError") {
+              downloadBlob(blob, fileName);
+              showToast("Receipt image saved to Downloads!");
+            }
+          }
+        } else {
+          // Desktop or browsers without direct file sharing
+          downloadBlob(blob, fileName);
+          try {
+            if (navigator.clipboard && window.ClipboardItem) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ "image/png": blob }),
+              ]);
+              showToast("Receipt image downloaded & copied to clipboard!");
+            } else {
+              showToast("Receipt image saved to Downloads!");
+            }
+          } catch {
+            showToast("Receipt image saved to Downloads!");
+          }
+        }
+        setIsSharingReceipt(false);
+      }, "image/png");
+    } catch (err) {
+      console.error("Error generating receipt image:", err);
+      showToast("Error generating receipt image");
+      setIsSharingReceipt(false);
     }
+  };
+
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
   };
 
   const handleShowReceiptById = (saleId: string) => {
@@ -1973,13 +2052,13 @@ export function InventorySystemApp() {
                 </svg>
 
                 <div className="inv-header">
-                  <Image
-                    src="/Prince Iyke logo.png"
-                    alt="Logo"
-                    width={80}
-                    height={80}
-                    className="inv-logo-abs"
-                  />
+                  <div className="inv-logo-col">
+                    <img
+                      src="/Prince Iyke logo.png"
+                      alt="Prince Iyke Logo"
+                      className="inv-logo-img"
+                    />
+                  </div>
                   <div className="inv-title-block">
                     <div className="inv-brand-title">PRINCE IYKE</div>
                     <div className="inv-brand-sub">
@@ -2010,6 +2089,7 @@ export function InventorySystemApp() {
                       <span className="inv-tel-red">Tel: 08035586953</span>
                     </div>
                   </div>
+                  <div className="inv-logo-spacer" aria-hidden="true"></div>
                 </div>
 
                 {currentReceiptType === "debt" && (
@@ -2381,8 +2461,12 @@ export function InventorySystemApp() {
             <button className="btn btn-ghost" onClick={handlePrint}>
               Print / Save as PDF
             </button>
-            <button className="btn btn-primary" onClick={handleShareReceipt}>
-              Share
+            <button
+              className="btn btn-primary"
+              onClick={handleShareReceipt}
+              disabled={isSharingReceipt}
+            >
+              {isSharingReceipt ? "Generating Image..." : "Share Receipt"}
             </button>
           </div>
         </div>
