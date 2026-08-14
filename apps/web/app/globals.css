@@ -1213,7 +1213,7 @@ input.cart-price-input {
 
   html,
   body {
-    height: 100% !important;
+    height: auto !important;
     overflow: visible !important;
     background: #fff !important;
     color: #000 !important;
@@ -1248,7 +1248,7 @@ input.cart-price-input {
     transform: none !important;
     width: 100% !important;
     max-width: 100% !important;
-    height: 100% !important;
+    height: auto !important;
     max-height: none !important;
     min-height: 0 !important;
     overflow: visible !important;
@@ -1275,7 +1275,7 @@ input.cart-price-input {
     left: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    height: 100% !important;
+    height: auto !important;
     overflow: visible !important;
     background: transparent !important;
     padding: 0 !important;
@@ -1287,7 +1287,8 @@ input.cart-price-input {
     min-width: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 100% !important;
+    min-height: 268mm !important;
+    height: auto !important;
     margin: 0 auto !important;
     padding: 16px 20px !important;
     border: 2px solid #104080 !important;

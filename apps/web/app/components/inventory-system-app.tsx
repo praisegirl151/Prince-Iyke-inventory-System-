@@ -801,7 +801,6 @@ export function InventorySystemApp() {
           try {
             await navigator.share({
               title: `Receipt - ${invoiceNum}`,
-              text: `Receipt for ${currentReceipt.customerName} (Invoice #${invoiceNum}) from ${settings.shopName || "PRINCE IYKE"}`,
               files: [file],
             });
             showToast("Receipt shared successfully!");
