@@ -106,19 +106,22 @@ resourcesRouter.post("/import/legacy", ownerOnly, async (req, res) => {
   if (previous) { res.json(jsonSafe({ imported: false, duplicate: true, summary: previous.summary })); return; }
   const productIds = new Map(input.products.map((product) => [product.id, randomUUID()]));
   const saleIds = new Map(input.sales.map((sale) => [String(sale.id), randomUUID()]));
+  const createdSaleIds = new Set<string>();
   const summary = await prisma.$transaction(async (tx) => {
     for (const product of input.products) await tx.product.create({ data: { id: productIds.get(product.id)!, shopId, name: product.name, category: product.category, unit: product.unit, stock: product.stock, lowStock: product.lowStock, costMinor: BigInt(Math.round(product.cost * 100)), priceMinor: BigInt(Math.round(product.price * 100)) } });
     let salesImported = 0;
     for (const sale of input.sales) {
       const validItems = ((sale.items as Array<Record<string, unknown>>) ?? []).filter((item) => productIds.has(String(item.productId)));
       if (!validItems.length) continue;
-      await tx.sale.create({ data: { id: saleIds.get(String(sale.id))!, shopId, staffId: req.auth!.userId, invoiceNo: `${String(sale.invoiceNo ?? "LEGACY")}-${salesImported + 1}`, occurredAt: new Date(String(sale.date)), paymentType: String(sale.paymentType ?? "cash"), customerName: String(sale.customerName ?? "Walk-in"), customerPhone: String(sale.customerPhone ?? ""), customerAddress: String(sale.customerAddress ?? ""), driver: String(sale.driver ?? ""), car: String(sale.car ?? ""), subtotalMinor: BigInt(Math.round(Number(sale.cartSubtotal ?? 0) * 100)), deliveryFeeMinor: BigInt(Math.round(Number(sale.deliveryFee ?? 0) * 100)), discountMinor: BigInt(Math.round(Number(sale.discount ?? 0) * 100)), totalMinor: BigInt(Math.round(Number(sale.total ?? 0) * 100)), amountPaidMinor: BigInt(Math.round(Number(sale.amountPaid ?? 0) * 100)), balanceMinor: BigInt(Math.round(Number(sale.balance ?? 0) * 100)), items: { create: validItems.map((item) => ({ productId: productIds.get(String(item.productId))!, name: String(item.name), unit: String(item.unit), quantity: Number(item.qty), unitPriceMinor: BigInt(Math.round(Number(item.price) * 100)), subtotalMinor: BigInt(Math.round(Number(item.subtotal) * 100)) })) } } });
+      const saleId = saleIds.get(String(sale.id))!;
+      await tx.sale.create({ data: { id: saleId, shopId, staffId: req.auth!.userId, invoiceNo: `${String(sale.invoiceNo ?? "LEGACY")}-${salesImported + 1}`, occurredAt: new Date(String(sale.date)), paymentType: String(sale.paymentType ?? "cash"), customerName: String(sale.customerName ?? "Walk-in"), customerPhone: String(sale.customerPhone ?? ""), customerAddress: String(sale.customerAddress ?? ""), driver: String(sale.driver ?? ""), car: String(sale.car ?? ""), subtotalMinor: BigInt(Math.round(Number(sale.cartSubtotal ?? 0) * 100)), deliveryFeeMinor: BigInt(Math.round(Number(sale.deliveryFee ?? 0) * 100)), discountMinor: BigInt(Math.round(Number(sale.discount ?? 0) * 100)), totalMinor: BigInt(Math.round(Number(sale.total ?? 0) * 100)), amountPaidMinor: BigInt(Math.round(Number(sale.amountPaid ?? 0) * 100)), balanceMinor: BigInt(Math.round(Number(sale.balance ?? 0) * 100)), items: { create: validItems.map((item) => ({ productId: productIds.get(String(item.productId))!, name: String(item.name), unit: String(item.unit), quantity: Number(item.qty), unitPriceMinor: BigInt(Math.round(Number(item.price) * 100)), subtotalMinor: BigInt(Math.round(Number(item.subtotal) * 100)) })) } } });
+      createdSaleIds.add(saleId);
       salesImported++;
     }
     let debtsImported = 0;
     for (const debt of input.debts) {
       const saleId = saleIds.get(String(debt.saleId));
-      if (!saleId || !(await tx.sale.findUnique({ where: { id: saleId } }))) continue;
+      if (!saleId || !createdSaleIds.has(saleId)) continue;
       await tx.debt.create({ data: { id: randomUUID(), shopId, saleId, customerName: String(debt.customerName), phone: String(debt.phone ?? ""), originalAmountMinor: BigInt(Math.round(Number(debt.originalAmount) * 100)), balanceMinor: BigInt(Math.round(Number(debt.balance) * 100)), occurredAt: new Date(String(debt.date)) } });
       debtsImported++;
     }
@@ -126,6 +129,9 @@ resourcesRouter.post("/import/legacy", ownerOnly, async (req, res) => {
     const result = { products: input.products.length, sales: salesImported, debts: debtsImported };
     await tx.importBatch.create({ data: { shopId, fingerprint: input.fingerprint, summary: result } });
     return result;
+  }, {
+    maxWait: 30000,
+    timeout: 180000,
   });
   res.status(201).json(jsonSafe({ imported: true, duplicate: false, summary }));
 });
