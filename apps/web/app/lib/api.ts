@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://prince-iyke-inventory-system-5.onrender.com/api/v1";
 let accessToken: string | null = null;
 export function setAccessToken(token: string | null) { accessToken = token; }
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {

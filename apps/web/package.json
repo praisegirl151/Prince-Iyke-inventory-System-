@@ -3,14 +3,22 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "main": "electron-main.js",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "next typegen && tsc --noEmit",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder",
+    "electron:pack": "next build && electron-builder",
+    "capacitor:init": "cap init",
+    "capacitor:sync": "next build && cap sync",
+    "capacitor:add:android": "cap add android"
   },
   "dependencies": {
+    "@capacitor/core": "^6.2.0",
     "@repo/ui": "workspace:*",
     "dexie": "^4.2.1",
     "html2canvas": "^1.4.1",
@@ -19,12 +27,30 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.39.1",
     "typescript": "5.9.2"
+  },
+  "build": {
+    "appId": "com.princeiyke.inventory",
+    "productName": "Prince Iyke Inventory",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron-main.js",
+      "out/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    }
   }
 }
