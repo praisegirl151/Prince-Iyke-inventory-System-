@@ -33,6 +33,7 @@ export function errorHandler(
       .json({ error: error.code, message: error.message });
     return;
   }
+  console.error("Internal Server Error:", error);
   res
     .status(500)
     .json({ error: "INTERNAL_ERROR", message: "Unexpected server error" });
