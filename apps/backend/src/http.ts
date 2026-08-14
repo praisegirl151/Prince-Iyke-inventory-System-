@@ -27,10 +27,15 @@ export function errorHandler(
     return;
   }
   if (error instanceof HttpError) {
-    res.status(error.status).json({ error: error.code, message: error.message });
+    console.error(error.message);
+    res
+      .status(error.status)
+      .json({ error: error.code, message: error.message });
     return;
   }
-  res.status(500).json({ error: "INTERNAL_ERROR", message: "Unexpected server error" });
+  res
+    .status(500)
+    .json({ error: "INTERNAL_ERROR", message: "Unexpected server error" });
 }
 
 export function jsonSafe(value: unknown) {
