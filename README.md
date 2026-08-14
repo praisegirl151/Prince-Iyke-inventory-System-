@@ -63,3 +63,37 @@ pnpm build
 ```
 
 Do not commit `.env` files or Neon credentials.
+
+## Deployment
+
+This workspace is prepared for deployment with the Next.js frontend hosted on Vercel and the Express backend hosted on Render.
+
+### 1. Deploy the Backend (`apps/backend`) on Render
+
+Create a new **Web Service** on Render pointing to your repository:
+- **Build Command**: `pnpm install && pnpm --filter backend build`
+- **Start Command**: `pnpm --filter backend start`
+- **Environment**: `Node`
+- **Environment Variables**:
+  - `DATABASE_URL`: Connection pooled Neon URL containing `-pooler` and `sslmode=require`.
+  - `DIRECT_URL`: Direct Neon URL without `-pooler` (with `sslmode=require`).
+  - `JWT_ACCESS_SECRET`: Secure random JWT access token secret (at least 32 characters).
+  - `JWT_REFRESH_SECRET`: Another secure random JWT refresh token secret (at least 32 characters).
+  - `WEB_ORIGIN`: The URL of your Vercel frontend deployment (e.g. `https://your-app.vercel.app`).
+  - `NODE_ENV`: `production`
+
+### 2. Deploy the Frontend (`apps/web`) on Vercel
+
+Create a new Project on Vercel pointing to your repository:
+- **Framework Preset**: Next.js
+- **Root Directory**: `apps/web`
+- **Build Command**: Leave as default (Next.js preset)
+- **Environment Variables**:
+  - `NEXT_PUBLIC_API_URL`: The URL of your Render backend deployment (including `/api/v1`, e.g. `https://your-backend.onrender.com/api/v1`).
+
+### 3. Database Migrations
+
+Before or during your backend deployment, run the Prisma database migrations against your production database:
+```sh
+pnpm --filter backend prisma:deploy
+```
