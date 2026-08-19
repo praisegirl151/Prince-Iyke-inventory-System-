@@ -64,6 +64,7 @@ function createWindow(port) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: false,
     },
     title: "Prince Iyke Inventory",
   });

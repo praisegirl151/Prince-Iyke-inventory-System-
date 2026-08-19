@@ -128,6 +128,7 @@ const Views = {
     if(name==='dashboard') Dashboard.render();
     if(name==='inventory') Views.renderInventory();
     if(name==='sale') Sale.renderPicker();
+    if(name==='quick-sale') QuickSale.init();
     if(name==='debts') Debts.render();
     if(name==='reports') Reports.render();
     if(name==='sales-log') SalesLog.render();
@@ -521,8 +522,8 @@ const Receipt = {
           <div class="inv-title-block">
             <div class="inv-brand-title">PRINCE IYKE</div>
             <div class="inv-brand-sub">BUILDING AND TECHNICAL TOOLS MERCHANTS</div>
-            <div class="inv-brand-div">(A Division of Obieze Holding)</div>
-            <div class="inv-brand-rc">RC 008855</div>
+            <div class="inv-brand-div">(A Division of Obiezu Holding)</div>
+            <div class="inv-brand-rc">RC: 3620072</div>
             <div class="inv-brand-deals">
               Ultimate in Building Material such as Cement, Zinc, Nails, Spade, Wheelbarrow, Paints, Welding/Filling Machine, General Supplies &amp; General Merchants
             </div>
@@ -624,7 +625,7 @@ const Receipt = {
     if(!s) return;
     const settings = DB.get(DB_KEYS.settings, {});
     const lines = s.items.map(i=>`${i.name} x${i.qty}${i.unit} — ${naira(i.subtotal)}`).join('\n');
-    let text = `${settings.shopName||'PRINCE IYKE'}\nRC: 008855\nInvoice No: ${s.invoiceNo||s.id.slice(-8).toUpperCase()}\nDate: ${new Date(s.date).toLocaleString('en-NG')}\nCustomer: ${s.customerName}\nPhone: ${s.customerPhone||'—'}\n\n${lines}\n\n`;
+    let text = `${settings.shopName||'PRINCE IYKE'}\nRC: 3620072\nInvoice No: ${s.invoiceNo||s.id.slice(-8).toUpperCase()}\nDate: ${new Date(s.date).toLocaleString('en-NG')}\nCustomer: ${s.customerName}\nPhone: ${s.customerPhone||'—'}\n\n${lines}\n\n`;
     if(s.deliveryFee > 0) text += `Delivery Fee: ${naira(s.deliveryFee)}\n`;
     if(s.discount > 0) text += `Discount: -${naira(s.discount)}\n`;
     text += `TOTAL: ${naira(s.total)}\n`;
@@ -690,8 +691,8 @@ const Receipt = {
           <div class="inv-title-block">
             <div class="inv-brand-title">PRINCE IYKE</div>
             <div class="inv-brand-sub">BUILDING AND TECHNICAL TOOLS MERCHANTS</div>
-            <div class="inv-brand-div">(A Division of Obieze Holding)</div>
-            <div class="inv-brand-rc">RC 008855</div>
+            <div class="inv-brand-div">(A Division of Obiezu Holding)</div>
+            <div class="inv-brand-rc">RC: 3620072</div>
             <div class="inv-brand-deals">
               Ultimate in Building Material such as Cement, Zinc, Nails, Spade, Wheelbarrow, Paints, Welding/Filling Machine, General Supplies &amp; General Merchants
             </div>
@@ -1225,6 +1226,187 @@ function renderShopHeader() {
     }
   }
 }
+
+/* ---------------- Quick Sale ---------------- */
+const QuickSale = {
+  cart: [],
+  init() {
+    this.cart = [];
+    this.clearInputs();
+    this.render();
+  },
+  clearInputs() {
+    document.getElementById('qs_itemName').value = '';
+    document.getElementById('qs_itemQty').value = '1';
+    document.getElementById('qs_itemUnit').value = 'pcs';
+    document.getElementById('qs_itemPrice').value = '';
+    document.getElementById('qs_customerName').value = '';
+    document.getElementById('qs_customerPhone').value = '';
+    document.getElementById('qs_customerAddress').value = '';
+    document.getElementById('qs_driver').value = '';
+    document.getElementById('qs_delivery').value = '';
+    document.getElementById('qs_discount').value = '';
+    document.getElementById('qs_paymentType').value = 'cash';
+    document.getElementById('qs_amountPaid').value = '';
+    document.getElementById('qs_payCash').value = '';
+    document.getElementById('qs_payT1').value = '';
+    document.getElementById('qs_payT2').value = '';
+    document.getElementById('qs_amountPaidField').style.display = 'none';
+    document.getElementById('qs_splitPayBlock').style.display = 'block';
+  },
+  onPaymentTypeChange() {
+    const type = document.getElementById('qs_paymentType').value;
+    document.getElementById('qs_amountPaidField').style.display = (type === 'credit') ? 'block' : 'none';
+    document.getElementById('qs_splitPayBlock').style.display = (type === 'credit') ? 'none' : 'block';
+    this.recalc();
+  },
+  addItem() {
+    const name = document.getElementById('qs_itemName').value.trim();
+    const qty = parseFloat(document.getElementById('qs_itemQty').value) || 0;
+    const price = parseFloat(document.getElementById('qs_itemPrice').value) || 0;
+    const unit = document.getElementById('qs_itemUnit').value.trim() || 'pcs';
+
+    if (!name) {
+      showToast('Enter item name');
+      return;
+    }
+    if (qty <= 0) {
+      showToast('Quantity must be greater than 0');
+      return;
+    }
+    if (price < 0) {
+      showToast('Price cannot be negative');
+      return;
+    }
+
+    const tempId = `quick-${uid()}`;
+    this.cart.push({ productId: tempId, name, unit, qty, price });
+
+    // Reset item inputs
+    document.getElementById('qs_itemName').value = '';
+    document.getElementById('qs_itemQty').value = '1';
+    document.getElementById('qs_itemUnit').value = 'pcs';
+    document.getElementById('qs_itemPrice').value = '';
+
+    this.render();
+  },
+  removeItem(id) {
+    this.cart = this.cart.filter(item => item.productId !== id);
+    this.render();
+  },
+  getCartTotal() {
+    return this.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  },
+  getGrandTotal() {
+    const subtotal = this.getCartTotal();
+    const delivery = parseFloat(document.getElementById('qs_delivery').value) || 0;
+    const discount = parseFloat(document.getElementById('qs_discount').value) || 0;
+    return subtotal + delivery - discount;
+  },
+  recalc() {
+    document.getElementById('qs_grandTotal').textContent = naira(this.getGrandTotal());
+  },
+  render() {
+    const list = document.getElementById('qs_cartList');
+    const subtotalRow = document.getElementById('qs_subtotalRow');
+    if (this.cart.length === 0) {
+      list.innerHTML = '<div class="empty">No custom items added yet</div>';
+      subtotalRow.style.display = 'none';
+    } else {
+      list.innerHTML = this.cart.map(item => `
+        <div class="list-row" style="padding: 10px 12px; background: rgba(255,255,255,0.02); margin-bottom: 8px; border-radius: 6px;">
+          <div style="flex: 1;">
+            <div class="prod-name" style="font-weight: 600;">${item.name}</div>
+            <div class="prod-meta" style="margin-top: 4px;">
+              ${item.qty} ${item.unit} × ${naira(item.price)} = <strong>${naira(item.price * item.qty)}</strong>
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-ghost" style="color: var(--rust); border-color: rgba(159,45,32,0.2); width: auto;" onclick="QuickSale.removeItem('${item.productId}')">Remove</button>
+        </div>
+      `).join('');
+      subtotalRow.style.display = 'flex';
+      document.getElementById('qs_cartSubtotal').textContent = naira(this.getCartTotal());
+    }
+    this.recalc();
+  },
+  complete() {
+    if (this.cart.length === 0) {
+      showToast('Add items to quick sale cart first');
+      return;
+    }
+
+    const type = document.getElementById('qs_paymentType').value;
+    const customerName = document.getElementById('qs_customerName').value.trim();
+    const customerPhone = document.getElementById('qs_customerPhone').value.trim();
+    const customerAddress = document.getElementById('qs_customerAddress').value.trim();
+    const driver = document.getElementById('qs_driver').value.trim();
+    const deliveryFee = parseFloat(document.getElementById('qs_delivery').value) || 0;
+    const discount = parseFloat(document.getElementById('qs_discount').value) || 0;
+    const payCash = parseFloat(document.getElementById('qs_payCash').value) || 0;
+    const payTransfer1 = parseFloat(document.getElementById('qs_payT1').value) || 0;
+    const payTransfer2 = parseFloat(document.getElementById('qs_payT2').value) || 0;
+
+    if (type === 'credit' && !customerName) {
+      showToast('Customer name required for credit sale');
+      return;
+    }
+
+    const subtotal = this.getCartTotal();
+    const grandTotal = this.getGrandTotal();
+    let amountPaid = grandTotal, balance = 0;
+    if (type === 'credit') {
+      amountPaid = parseFloat(document.getElementById('qs_amountPaid').value) || 0;
+      balance = grandTotal - amountPaid;
+    }
+
+    const sales = DB.get(DB_KEYS.sales, []);
+    const invoiceSeq = sales.length + 1;
+    const currentYear = new Date().getFullYear();
+    const invoiceNo = `PI-${currentYear}-${String(invoiceSeq).padStart(4, '0')}`;
+
+    const sale = {
+      id: uid(),
+      invoiceNo,
+      date: new Date().toISOString(),
+      items: this.cart.map(c => ({ ...c, subtotal: c.price * c.qty })),
+      total: grandTotal,
+      cartSubtotal: subtotal,
+      deliveryFee,
+      discount,
+      paymentType: type,
+      customerName: customerName || 'Walk-in',
+      customerPhone,
+      customerAddress,
+      driver,
+      car: '',
+      staffName: getActiveUser().name,
+      amountPaid,
+      balance,
+      payCash,
+      payTransfer1,
+      payTransfer2
+    };
+
+    sales.push(sale);
+    DB.set(DB_KEYS.sales, sales);
+
+    if (type === 'credit' && balance > 0) {
+      const debts = DB.get(DB_KEYS.debts, []);
+      debts.push({
+        id: uid(), saleId: sale.id, customerName, phone: customerPhone,
+        originalAmount: balance, balance, date: sale.date, payments: []
+      });
+      DB.set(DB_KEYS.debts, debts);
+    }
+
+    Receipt.show(sale);
+    this.cart = [];
+    this.clearInputs();
+    this.render();
+    Dashboard.render();
+    showToast('Quick Sale receipt generated!');
+  }
+};
 
 /* ---------------- Init ---------------- */
 window.addEventListener('DOMContentLoaded', ()=>{

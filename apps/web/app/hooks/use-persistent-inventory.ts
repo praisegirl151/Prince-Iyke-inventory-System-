@@ -47,6 +47,20 @@ export function usePersistentInventory() {
 
   useEffect(() => {
     void (async () => {
+      if (typeof window !== "undefined") {
+        const WIPED_KEY = "sp_db_wiped_slate_v2";
+        if (!localStorage.getItem(WIPED_KEY)) {
+          localStorage.clear();
+          try {
+            await offlineDb.delete();
+          } catch (e) {
+            console.error("Failed to delete offlineDb:", e);
+          }
+          localStorage.setItem(WIPED_KEY, "true");
+          window.location.reload();
+          return;
+        }
+      }
       await migrateLegacyStorage();
       const state = await loadOfflineState();
       let loadedUsers = state.users, loadedActiveUser = state.activeUser;

@@ -1016,7 +1016,7 @@
       <div class="brand-title" id="shopNameDisplay">PRINCE IYKE</div>
       <div class="brand-subtitle">BUILDING &amp; TECHNICAL TOOLS MERCHANTS</div>
       <div class="brand-division" id="shopLine">(A Division of Obiezu Holding)</div>
-      <div class="brand-rc">RC 008855</div>
+      <div class="brand-rc">RC: 3620072</div>
       <div class="brand-deals">
         Ultimate in Building Material such as Cement, Zinc, Nails, Spade, Wheelbarrow, Paints, Welding/Filling Machine, General Supplies &amp; General Merchants
       </div>
@@ -1208,10 +1208,133 @@
     <div class="card"><div class="section-title">Low Stock</div><div id="reportLowStock"></div></div>
   </div>
 
+  <!-- QUICK SALE -->
+  <div class="view" id="view-quick-sale">
+    <div class="sale-layout">
+      <!-- LEFT COLUMN: Custom Items Builder -->
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="section-title">Add Custom Item</div>
+          <div class="field-grid" style="grid-template-columns: 1fr; gap: 12px;">
+            <div class="field">
+              <label for="qs_itemName">Item Name / Description</label>
+              <input id="qs_itemName" type="text" placeholder="Enter item name...">
+            </div>
+            <div class="field-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
+              <div class="field">
+                <label for="qs_itemQty">Quantity</label>
+                <input id="qs_itemQty" type="number" min="0.01" step="any" value="1">
+              </div>
+              <div class="field">
+                <label for="qs_itemUnit">Unit</label>
+                <input id="qs_itemUnit" type="text" placeholder="pcs" value="pcs">
+              </div>
+              <div class="field">
+                <label for="qs_itemPrice">Unit Price (₦)</label>
+                <input id="qs_itemPrice" type="number" min="0" step="any" placeholder="0">
+              </div>
+            </div>
+            <button class="btn btn-amber" style="margin-top: 8px; width: 100%;" onclick="QuickSale.addItem()">+ Add Item to Receipt</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Receipt Items</div>
+          <div id="qs_cartList"><div class="empty">No custom items added yet</div></div>
+          <div class="cart-total-row" id="qs_subtotalRow" style="display:none; margin-top:12px; border-top:1px solid var(--line-strong); padding-top:12px;">
+            <span>Subtotal</span>
+            <strong id="qs_cartSubtotal">₦0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: Quick Checkout Panel -->
+      <div>
+        <div class="card">
+          <div class="section-title">Quick Receipt Details</div>
+          
+          <div class="field-grid" style="grid-template-columns: 1fr; gap: 10px;">
+            <div class="field">
+              <label for="qs_customerName">Customer Name</label>
+              <input id="qs_customerName" type="text" placeholder="Walk-in Customer (Default)">
+            </div>
+
+            <div class="field">
+              <label for="qs_customerPhone">Customer Phone</label>
+              <input id="qs_customerPhone" type="text" placeholder="Phone number...">
+            </div>
+
+            <div class="field">
+              <label for="qs_customerAddress">Customer Address</label>
+              <input id="qs_customerAddress" type="text" placeholder="Address details...">
+            </div>
+
+            <div class="field">
+              <label for="qs_driver">Driver Name / Vehicle</label>
+              <input id="qs_driver" type="text" placeholder="e.g. Driver John">
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--line); margin: 8px 0;" />
+
+            <div class="field-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div class="field">
+                <label for="qs_delivery">Delivery Fee (₦)</label>
+                <input id="qs_delivery" type="number" min="0" placeholder="0" oninput="QuickSale.recalc()">
+              </div>
+              <div class="field">
+                <label for="qs_discount">Discount (₦)</label>
+                <input id="qs_discount" type="number" min="0" placeholder="0" oninput="QuickSale.recalc()">
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="qs_paymentType">Payment Mode</label>
+              <select id="qs_paymentType" onchange="QuickSale.onPaymentTypeChange()">
+                <option value="cash">Cash / Full Payment</option>
+                <option value="credit">Credit (Owed / Balance)</option>
+              </select>
+            </div>
+
+            <div class="field" id="qs_amountPaidField" style="display:none;">
+              <label for="qs_amountPaid">Amount Paid Now (₦)</label>
+              <input id="qs_amountPaid" type="number" min="0" placeholder="0" oninput="QuickSale.recalc()">
+            </div>
+
+            <div id="qs_splitPayBlock" style="marginTop: 4px; padding: 8px; background: rgba(255,255,255,0.02); borderRadius: 6px;">
+              <div class="section-title" style="font-size: 12px; margin-bottom: 6px; text-transform: uppercase; opacity: 0.8;">Split Payment Breakdown</div>
+              <div class="field-grid" style="grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                <div class="field">
+                  <label for="qs_payCash" style="font-size: 10px;">Cash Portion</label>
+                  <input id="qs_payCash" type="number" placeholder="₦" style="padding: 6px; font-size: 12px;">
+                </div>
+                <div class="field">
+                  <label for="qs_payT1" style="font-size: 10px;">Transfer 1</label>
+                  <input id="qs_payT1" type="number" placeholder="₦" style="padding: 6px; font-size: 12px;">
+                </div>
+                <div class="field">
+                  <label for="qs_payT2" style="font-size: 10px;">Transfer 2</label>
+                  <input id="qs_payT2" type="number" placeholder="₦" style="padding: 6px; font-size: 12px;">
+                </div>
+              </div>
+            </div>
+
+            <div class="cart-total-row" style="margin-top: 10px; padding: 10px 0; border-top: 2px double var(--line-strong);">
+              <span style="font-size: 15px; font-weight: bold;">Grand Total</span>
+              <span style="font-size: 18px; font-weight: bold; color: var(--amber);" id="qs_grandTotal">₦0</span>
+            </div>
+
+            <button class="btn btn-amber btn-lg" style="width: 100%; padding: 12px; font-size: 15px; font-weight: bold;" onclick="QuickSale.complete()">Generate & Print Receipt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="tabbar">
     <button data-tab="dashboard" onclick="Views.go('dashboard')"><span>Home</span></button>
     <button data-tab="inventory" onclick="Views.go('inventory')"><span>Inventory</span></button>
     <button data-tab="sale" onclick="Views.go('sale')"><span>New Sale</span></button>
+    <button data-tab="quick-sale" onclick="Views.go('quick-sale')"><span>Quick Sale</span></button>
     <button data-tab="sales-log" onclick="Views.go('sales-log')"><span>Sales Log</span></button>
     <button data-tab="debts" onclick="Views.go('debts')"><span>Debts</span></button>
     <button data-tab="reports" onclick="Views.go('reports')"><span>Reports</span></button>

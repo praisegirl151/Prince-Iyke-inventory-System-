@@ -45,7 +45,7 @@ export function AppHeader({
           </div>
         )}
         <div className="brand-division">{division}</div>
-        <div className="brand-rc">RC 008855</div>
+        <div className="brand-rc">RC: 3620072</div>
         <div className="brand-deals">
           Ultimate in Building Material such as Cement, Zinc, Nails, Spade,
           Wheelbarrow, Paints, Welding/Filling Machine, General Supplies &amp;
@@ -100,6 +100,12 @@ export function Navigation({
           onClick={() => onTabChange("sale")}
         >
           <span>New Sale</span>
+        </button>
+        <button
+          className={activeTab === "quick-sale" ? "active" : ""}
+          onClick={() => onTabChange("quick-sale")}
+        >
+          <span>Quick Sale</span>
         </button>
         <button
           className={activeTab === "sales-log" ? "active" : ""}

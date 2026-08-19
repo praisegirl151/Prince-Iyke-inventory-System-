@@ -4,6 +4,7 @@ export type TabName =
   | "dashboard"
   | "inventory"
   | "sale"
+  | "quick-sale"
   | "sales-log"
   | "debts"
   | "reports";

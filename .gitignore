@@ -26,6 +26,8 @@ coverage
 out/
 build
 dist
+dist-electron/
+apps/web/dist-electron/
 apps/backend/src/generated/
 
 

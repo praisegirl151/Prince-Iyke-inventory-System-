@@ -32,6 +32,9 @@ export const SalesLogView = (props: NamedViewProps) => (
 export const DebtsView = (props: NamedViewProps) => (
   <ViewPanel name="debts" {...props} />
 );
+export const QuickSaleView = (props: NamedViewProps) => (
+  <ViewPanel name="quick-sale" {...props} />
+);
 export const ReportsView = (props: NamedViewProps) => (
   <ViewPanel name="reports" {...props} />
 );

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "main": "electron-main.js",
+  "main": "electron-main.cjs",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
@@ -46,11 +46,12 @@
       "output": "dist-electron"
     },
     "files": [
-      "electron-main.js",
+      "electron-main.cjs",
       "out/**/*"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/emblem.ico"
     }
   }
 }

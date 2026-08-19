@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import React, { useMemo, useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import Image from "next/image";
 import html2canvas from "html2canvas";
 import {
@@ -21,6 +21,7 @@ import {
   DashboardView,
   DebtsView,
   InventoryView,
+  QuickSaleView,
   ReportsView,
   SaleView,
   SalesLogView,
@@ -102,6 +103,192 @@ export function InventorySystemApp() {
   } = useInventorySystem();
   const [showConflicts, setShowConflicts] = useState(false);
   const [isSharingReceipt, setIsSharingReceipt] = useState(false);
+
+  // --- QUICK SALE STATE & LOGIC ---
+  const [quickCart, setQuickCart] = useState<Array<{ productId: string; name: string; unit: string; qty: number; price: number }>>([]);
+  const [quickItemName, setQuickItemName] = useState("");
+  const [quickItemQty, setQuickItemQty] = useState("1");
+  const [quickItemUnit, setQuickItemUnit] = useState("pcs");
+  const [quickItemPrice, setQuickItemPrice] = useState("");
+
+  const [quickCustomerName, setQuickCustomerName] = useState("");
+  const [quickCustomerPhone, setQuickCustomerPhone] = useState("");
+  const [quickCustomerAddress, setQuickCustomerAddress] = useState("");
+  const [quickDeliveryFee, setQuickDeliveryFee] = useState("");
+  const [quickDiscount, setQuickDiscount] = useState("");
+  const [quickPaymentType, setQuickPaymentType] = useState("cash");
+  const [quickAmountPaid, setQuickAmountPaid] = useState("");
+  const [quickDriver, setQuickDriver] = useState("");
+  const [quickPayCash, setQuickPayCash] = useState("");
+  const [quickPayTransfer1, setQuickPayTransfer1] = useState("");
+  const [quickPayTransfer2, setQuickPayTransfer2] = useState("");
+
+  const addQuickItem = () => {
+    const name = quickItemName.trim();
+    const qty = parseFloat(quickItemQty) || 0;
+    const price = parseFloat(quickItemPrice) || 0;
+    const unit = quickItemUnit.trim();
+
+    if (!name) {
+      showToast("Enter item name");
+      return;
+    }
+    if (qty <= 0) {
+      showToast("Quantity must be greater than 0");
+      return;
+    }
+    if (price < 0) {
+      showToast("Price cannot be negative");
+      return;
+    }
+
+    const tempId = `quick-${uid()}`;
+    setQuickCart((prev) => [
+      ...prev,
+      { productId: tempId, name, unit, qty, price },
+    ]);
+
+    // Reset inputs
+    setQuickItemName("");
+    setQuickItemQty("1");
+    setQuickItemUnit("pcs");
+    setQuickItemPrice("");
+  };
+
+  const removeQuickItem = (productId: string) => {
+    setQuickCart((prev) => prev.filter((item) => item.productId !== productId));
+  };
+
+  const quickCartTotal = useMemo(() => {
+    return quickCart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  }, [quickCart]);
+
+  const quickGrandTotal = useMemo(() => {
+    const delivery = parseFloat(quickDeliveryFee) || 0;
+    const discount = parseFloat(quickDiscount) || 0;
+    return quickCartTotal + delivery - discount;
+  }, [quickCartTotal, quickDeliveryFee, quickDiscount]);
+
+  const handleCompleteQuickSale = () => {
+    if (quickCart.length === 0) {
+      showToast("Add items to quick sale cart first");
+      return;
+    }
+
+    const type = quickPaymentType;
+    const customerName = quickCustomerName.trim();
+    const customerPhone = quickCustomerPhone.trim();
+    const customerAddress = quickCustomerAddress.trim();
+    const deliveryFee = parseFloat(quickDeliveryFee) || 0;
+    const discount = parseFloat(quickDiscount) || 0;
+    const payCash = parseFloat(quickPayCash) || 0;
+    const payTransfer1 = parseFloat(quickPayTransfer1) || 0;
+    const payTransfer2 = parseFloat(quickPayTransfer2) || 0;
+
+    if (type === "credit" && !customerName) {
+      showToast("Customer name required for credit sale");
+      return;
+    }
+
+    const subtotal = quickCartTotal;
+    const grandTotal = quickGrandTotal;
+    let amountPaid = grandTotal;
+    let balance = 0;
+
+    if (type === "credit") {
+      amountPaid = parseFloat(quickAmountPaid) || 0;
+      balance = grandTotal - amountPaid;
+    }
+
+    const invoiceSeq = sales.length + 1;
+    const currentYear = new Date().getFullYear();
+    const invoiceNo = `PI-${currentYear}-${String(invoiceSeq).padStart(4, "0")}`;
+
+    const newSale = {
+      id: uid(),
+      invoiceNo,
+      date: new Date().toISOString(),
+      items: quickCart.map((c) => ({ ...c, subtotal: c.price * c.qty })),
+      total: grandTotal,
+      cartSubtotal: subtotal,
+      deliveryFee,
+      discount,
+      paymentType: type,
+      customerName: customerName || "Walk-in",
+      customerPhone,
+      customerAddress,
+      driver: quickDriver.trim(),
+      car: "",
+      staffName: activeUserObj ? activeUserObj.name : "System",
+      amountPaid,
+      balance,
+      payCash,
+      payTransfer1,
+      payTransfer2,
+    };
+
+    const newSalesList = [...sales, newSale];
+    setSales(newSalesList);
+
+    let debtId: string | undefined;
+    if (type === "credit" && balance > 0) {
+      debtId = uid();
+      const newDebt = {
+        id: debtId,
+        saleId: newSale.id,
+        customerName,
+        phone: customerPhone,
+        originalAmount: balance,
+        balance,
+        date: newSale.date,
+        payments: [],
+      };
+      setDebts([...debts, newDebt]);
+    }
+
+    void enqueueOperation({
+      entityType: "sale",
+      entityId: newSale.id,
+      kind: "SALE",
+      payload: { ...newSale, debtId },
+    });
+
+    // Reset quick sale cart and inputs
+    setQuickCart([]);
+    setQuickCustomerName("");
+    setQuickCustomerPhone("");
+    setQuickCustomerAddress("");
+    setQuickDeliveryFee("");
+    setQuickDiscount("");
+    setQuickPaymentType("cash");
+    setQuickAmountPaid("");
+    setQuickDriver("");
+    setQuickPayCash("");
+    setQuickPayTransfer1("");
+    setQuickPayTransfer2("");
+
+    // Show receipt
+    setCurrentReceiptType("sale");
+    setCurrentReceipt(saleToReceipt(newSale));
+    setActiveModal("receipt");
+    showToast("Quick Sale receipt generated!");
+  };
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      if (typeof document !== "undefined") {
+        document.body.classList.remove("print-a4-active", "print-small-active");
+        const style = document.getElementById("small-print-page-style");
+        if (style) {
+          style.remove();
+        }
+      }
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
 
   // --- VIEW ROLES & USER CONTROLS ---
   const activeUserObj = useMemo(() => {
@@ -865,6 +1052,23 @@ export function InventorySystemApp() {
   };
 
   const handlePrint = () => {
+    if (typeof document !== "undefined") {
+      document.body.classList.add("print-a4-active");
+      document.body.classList.remove("print-small-active");
+    }
+    window.print();
+  };
+
+  const handlePrintSmall = () => {
+    if (typeof document !== "undefined") {
+      document.body.classList.add("print-small-active");
+      document.body.classList.remove("print-a4-active");
+      
+      const style = document.createElement("style");
+      style.id = "small-print-page-style";
+      style.innerHTML = "@page { size: auto; margin: 4mm 2mm; }";
+      document.head.appendChild(style);
+    }
     window.print();
   };
 
@@ -1242,6 +1446,269 @@ export function InventorySystemApp() {
           </div>
         </div>
       </SaleView>
+
+      {/* QUICK SALE VIEW */}
+      <QuickSaleView activeTab={activeTab}>
+        <div className="sale-layout">
+          {/* LEFT COLUMN: Custom Items Builder */}
+          <div>
+            <div className="card" style={{ marginBottom: "16px" }}>
+              <div className="section-title">Add Custom Item</div>
+              <div className="field-grid" style={{ gridTemplateColumns: "1fr", gap: "12px" }}>
+                <div className="field">
+                  <label htmlFor="qs_itemName">Item Name / Description</label>
+                  <input
+                    id="qs_itemName"
+                    type="text"
+                    placeholder="Enter item name..."
+                    value={quickItemName}
+                    onChange={(e) => setQuickItemName(e.target.value)}
+                  />
+                </div>
+                <div className="field-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+                  <div className="field">
+                    <label htmlFor="qs_itemQty">Quantity</label>
+                    <input
+                      id="qs_itemQty"
+                      type="number"
+                      min="0.01"
+                      step="any"
+                      placeholder="Qty"
+                      value={quickItemQty}
+                      onChange={(e) => setQuickItemQty(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="qs_itemUnit">Unit</label>
+                    <input
+                      id="qs_itemUnit"
+                      type="text"
+                      placeholder="e.g. pcs, bags"
+                      value={quickItemUnit}
+                      onChange={(e) => setQuickItemUnit(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="qs_itemPrice">Unit Price (₦)</label>
+                    <input
+                      id="qs_itemPrice"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Rate"
+                      value={quickItemPrice}
+                      onChange={(e) => setQuickItemPrice(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-amber"
+                  style={{ marginTop: "8px", width: "100%" }}
+                  onClick={addQuickItem}
+                >
+                  + Add Item to Receipt
+                </button>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="section-title">Receipt Items</div>
+              <div id="quickCartList">
+                {quickCart.length === 0 ? (
+                  <div className="empty">No custom items added yet</div>
+                ) : (
+                  quickCart.map((item) => (
+                    <div className="list-row" key={item.productId} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.02)", marginBottom: "8px", borderRadius: "6px" }}>
+                      <div style={{ flex: 1 }}>
+                        <div className="prod-name" style={{ fontWeight: 600 }}>{item.name}</div>
+                        <div className="prod-meta" style={{ marginTop: "4px" }}>
+                          {item.qty} {item.unit} × {naira(item.price)} = <strong>{naira(item.price * item.qty)}</strong>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        style={{ color: "var(--rust)", borderColor: "rgba(159,45,32,0.2)", width: "auto" }}
+                        onClick={() => removeQuickItem(item.productId)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              {quickCart.length > 0 && (
+                <div className="cart-total-row" style={{ marginTop: "12px", borderTop: "1px solid var(--line-strong)", paddingTop: "12px" }}>
+                  <span>Subtotal</span>
+                  <strong>{naira(quickCartTotal)}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Quick Checkout Panel */}
+          <div>
+            <div className="card">
+              <div className="section-title">Quick Receipt Details</div>
+              
+              <div className="field-grid" style={{ gridTemplateColumns: "1fr", gap: "10px" }}>
+                <div className="field">
+                  <label htmlFor="qs_customerName">Customer Name</label>
+                  <input
+                    id="qs_customerName"
+                    type="text"
+                    placeholder="Walk-in Customer (Default)"
+                    value={quickCustomerName}
+                    onChange={(e) => setQuickCustomerName(e.target.value)}
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="qs_customerPhone">Customer Phone</label>
+                  <input
+                    id="qs_customerPhone"
+                    type="text"
+                    placeholder="Phone number..."
+                    value={quickCustomerPhone}
+                    onChange={(e) => setQuickCustomerPhone(e.target.value)}
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="qs_customerAddress">Customer Address</label>
+                  <input
+                    id="qs_customerAddress"
+                    type="text"
+                    placeholder="Address details..."
+                    value={quickCustomerAddress}
+                    onChange={(e) => setQuickCustomerAddress(e.target.value)}
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="qs_driver">Driver Name / Vehicle</label>
+                  <input
+                    id="qs_driver"
+                    type="text"
+                    placeholder="e.g. Driver John (Truck 4)"
+                    value={quickDriver}
+                    onChange={(e) => setQuickDriver(e.target.value)}
+                  />
+                </div>
+
+                <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "8px 0" }} />
+
+                <div className="field-grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div className="field">
+                    <label htmlFor="qs_delivery">Delivery Fee (₦)</label>
+                    <input
+                      id="qs_delivery"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={quickDeliveryFee}
+                      onChange={(e) => setQuickDeliveryFee(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="qs_discount">Discount (₦)</label>
+                    <input
+                      id="qs_discount"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={quickDiscount}
+                      onChange={(e) => setQuickDiscount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="qs_paymentType">Payment Mode</label>
+                  <select
+                    id="qs_paymentType"
+                    value={quickPaymentType}
+                    onChange={(e) => setQuickPaymentType(e.target.value)}
+                  >
+                    <option value="cash">Cash / Full Payment</option>
+                    <option value="credit">Credit (Owed / Balance)</option>
+                  </select>
+                </div>
+
+                {quickPaymentType === "credit" && (
+                  <div className="field">
+                    <label htmlFor="qs_amountPaid">Amount Paid Now (₦)</label>
+                    <input
+                      id="qs_amountPaid"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={quickAmountPaid}
+                      onChange={(e) => setQuickAmountPaid(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {quickPaymentType !== "credit" && (
+                  <div style={{ marginTop: "4px", padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
+                    <div className="section-title" style={{ fontSize: "12px", marginBottom: "6px", textTransform: "uppercase", opacity: 0.8 }}>Split Payment Breakdown</div>
+                    <div className="field-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                      <div className="field">
+                        <label htmlFor="qs_payCash" style={{ fontSize: "10px" }}>Cash Portion</label>
+                        <input
+                          id="qs_payCash"
+                          type="number"
+                          placeholder="₦"
+                          style={{ padding: "6px", fontSize: "12px" }}
+                          value={quickPayCash}
+                          onChange={(e) => setQuickPayCash(e.target.value)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="qs_payT1" style={{ fontSize: "10px" }}>Transfer 1</label>
+                        <input
+                          id="qs_payT1"
+                          type="number"
+                          placeholder="₦"
+                          style={{ padding: "6px", fontSize: "12px" }}
+                          value={quickPayTransfer1}
+                          onChange={(e) => setQuickPayTransfer1(e.target.value)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="qs_payT2" style={{ fontSize: "10px" }}>Transfer 2</label>
+                        <input
+                          id="qs_payT2"
+                          type="number"
+                          placeholder="₦"
+                          style={{ padding: "6px", fontSize: "12px" }}
+                          value={quickPayTransfer2}
+                          onChange={(e) => setQuickPayTransfer2(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="cart-total-row" style={{ marginTop: "10px", padding: "10px 0", borderTop: "2px double var(--line-strong)" }}>
+                  <span style={{ fontSize: "15px", fontWeight: "bold" }}>Grand Total</span>
+                  <span style={{ fontSize: "18px", fontWeight: "bold", color: "var(--amber)" }}>{naira(quickGrandTotal)}</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-amber btn-lg"
+                  style={{ width: "100%", padding: "12px", fontSize: "15px", fontWeight: "bold" }}
+                  onClick={handleCompleteQuickSale}
+                >
+                  Generate & Print Receipt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </QuickSaleView>
 
       {/* SALES LOG VIEW */}
       <SalesLogView activeTab={activeTab}>
@@ -2012,7 +2479,8 @@ export function InventorySystemApp() {
 
           <div id="printArea">
             {currentReceipt && (
-              <div className="invoice-a4">
+              <>
+                <div className="invoice-a4">
                 <svg
                   className="invoice-ribbon-top"
                   viewBox="0 0 100 100"
@@ -2064,9 +2532,9 @@ export function InventorySystemApp() {
                       BUILDING AND TECHNICAL TOOLS MERCHANTS
                     </div>
                     <div className="inv-brand-div">
-                      (A Division of Obieze Holding)
+                      (A Division of Obiezu Holding)
                     </div>
-                    <div className="inv-brand-rc">RC 008855</div>
+                    <div className="inv-brand-rc">RC: 3620072</div>
                     <div className="inv-brand-deals">
                       Ultimate in Building Material such as Cement, Zinc, Nails,
                       Spade, Wheelbarrow, Paints, Welding/Filling Machine,
@@ -2453,19 +2921,189 @@ export function InventorySystemApp() {
                   <div className="inv-auth-line">Authorised Signatory</div>
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="btn-row" style={{ marginTop: "16px" }}>
+              <div className="ticket small-receipt">
+                <div className="ticket-shop">PRINCE IYKE</div>
+                <div className="ticket-sub" style={{ textTransform: "uppercase", fontWeight: "bold" }}>
+                  Building &amp; Technical Tools Merchants
+                </div>
+                <div className="ticket-sub">(A Division of Obiezu Holding)</div>
+                <div className="ticket-sub">RC: 3620072</div>
+                <div className="ticket-sub" style={{ fontSize: "9px", marginTop: "4px" }}>
+                  HQ: 57 New Timber Rd, Uyo. Tel: 08036722968
+                </div>
+
+                <div className="ticket-hr"></div>
+
+                <div className="ticket-row">
+                  <span>Invoice No:</span>
+                  <span style={{ fontWeight: "bold" }}>
+                    {currentReceipt.invoiceNo || currentReceipt.id.slice(-8).toUpperCase()}
+                  </span>
+                </div>
+                <div className="ticket-row">
+                  <span>Date:</span>
+                  <span>{new Date(currentReceipt.date).toLocaleString("en-NG")}</span>
+                </div>
+                <div className="ticket-row">
+                  <span>Customer:</span>
+                  <span>{currentReceipt.customerName || "Walk-in Customer"}</span>
+                </div>
+                {currentReceipt.customerPhone && (
+                  <div className="ticket-row">
+                    <span>Phone:</span>
+                    <span>{currentReceipt.customerPhone}</span>
+                  </div>
+                )}
+                {currentReceipt.customerAddress && (
+                  <div className="ticket-row">
+                    <span>Address:</span>
+                    <span>{currentReceipt.customerAddress}</span>
+                  </div>
+                )}
+                <div className="ticket-row">
+                  <span>Payment:</span>
+                  <span style={{ textTransform: "uppercase" }}>{currentReceipt.paymentType}</span>
+                </div>
+                {currentReceipt.driver && (
+                  <div className="ticket-row">
+                    <span>Driver:</span>
+                    <span>
+                      {currentReceipt.driver} {currentReceipt.car ? `(${currentReceipt.car})` : ""}
+                    </span>
+                  </div>
+                )}
+
+                <div className="ticket-hr"></div>
+
+                <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px", textAlign: "center" }}>
+                  --- ITEMS ---
+                </div>
+                {currentReceipt.items.map((item, idx) => (
+                  <div key={idx} style={{ marginBottom: "6px" }}>
+                    <div className="ticket-item-row" style={{ margin: "0", fontWeight: "500" }}>
+                      <span className="ticket-item-name">
+                        {idx + 1}. {item.name}
+                      </span>
+                      <span>{naira(item.subtotal)}</span>
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#555", paddingLeft: "12px" }}>
+                      {item.qty} {item.unit} x {naira(item.price)}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="ticket-hr"></div>
+
+                <div className="ticket-row">
+                  <span>Subtotal:</span>
+                  <span>{naira(currentReceipt.cartSubtotal)}</span>
+                </div>
+                {currentReceipt.deliveryFee > 0 && (
+                  <div className="ticket-row">
+                    <span>Delivery Fee:</span>
+                    <span>{naira(currentReceipt.deliveryFee)}</span>
+                  </div>
+                )}
+                {currentReceipt.discount > 0 && (
+                  <div className="ticket-row">
+                    <span>Discount:</span>
+                    <span>-{naira(currentReceipt.discount)}</span>
+                  </div>
+                )}
+
+                <div className="ticket-total" style={{ borderTop: "1px dashed #000", borderBottom: "1px dashed #000", padding: "4px 0" }}>
+                  <span>TOTAL:</span>
+                  <span>{naira(currentReceipt.total)}</span>
+                </div>
+
+                <div className="ticket-hr"></div>
+
+                <div className="ticket-row">
+                  <span>Amount Paid:</span>
+                  <span>{naira(currentReceipt.amountPaid)}</span>
+                </div>
+                <div className="ticket-row" style={{ fontWeight: "bold" }}>
+                  <span>Balance Due:</span>
+                  <span style={{ color: currentReceipt.balance <= 0 ? "#1B8B3E" : "#D32F2F" }}>
+                    {naira(currentReceipt.balance)}
+                  </span>
+                </div>
+
+                {(currentReceipt.payCash > 0 || currentReceipt.payTransfer1 > 0 || currentReceipt.payTransfer2 > 0) && (
+                  <div style={{ fontSize: "10px", color: "#555", marginTop: "4px", textAlign: "center" }}>
+                    Payments: {[
+                      currentReceipt.payCash > 0 && `Cash: ${naira(currentReceipt.payCash)}`,
+                      currentReceipt.payTransfer1 > 0 && `Transfer 1: ${naira(currentReceipt.payTransfer1)}`,
+                      currentReceipt.payTransfer2 > 0 && `Transfer 2: ${naira(currentReceipt.payTransfer2)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")}
+                  </div>
+                )}
+
+                {currentReceiptType === "debt" && currentReceipt.payments && currentReceipt.payments.length > 0 && (
+                  <>
+                    <div className="ticket-hr"></div>
+                    <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px", textAlign: "center" }}>
+                      --- DEBT STATEMENT ---
+                    </div>
+                    <div className="ticket-row">
+                      <span>Original Debt:</span>
+                      <span>{naira(currentReceipt.originalAmount)}</span>
+                    </div>
+                    {currentReceipt.payments.map((p, idx) => (
+                      <div className="ticket-row" key={idx} style={{ fontSize: "11px", color: "#555" }}>
+                        <span>
+                          Payment #{idx + 1} ({new Date(p.date).toLocaleDateString("en-NG")}):
+                        </span>
+                        <span>{naira(p.amount)}</span>
+                      </div>
+                    ))}
+                    <div
+                      className="ticket-row"
+                      style={{
+                        fontWeight: "bold",
+                        borderTop: "1px dashed #ccc",
+                        paddingTop: "4px",
+                        marginTop: "4px",
+                      }}
+                    >
+                      <span>Outstanding Bal:</span>
+                      <span>{naira(currentReceipt.balance)}</span>
+                    </div>
+                  </>
+                )}
+
+                <div className="ticket-hr"></div>
+
+                <div className="ticket-foot">
+                  {currentReceiptType === "sale" || currentReceipt.balance <= 0
+                    ? "Thank you for your patronage!"
+                    : "Thank you for your payment!"}
+                </div>
+                <div className="ticket-foot" style={{ fontSize: "9px", marginTop: "4px", textTransform: "uppercase" }}>
+                  PRINCE IYKE MERCHANTS
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+          <div className="btn-row" style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
             <button className="btn btn-ghost" onClick={handlePrint}>
-              Print / Save as PDF
+              Print
+            </button>
+            <button className="btn btn-ghost" onClick={handlePrintSmall}>
+              Small receipt
             </button>
             <button
               className="btn btn-primary"
               onClick={handleShareReceipt}
               disabled={isSharingReceipt}
+              style={{ flex: 1 }}
             >
-              {isSharingReceipt ? "Generating Image..." : "Share Receipt"}
+              {isSharingReceipt ? "Generating Image..." : "Share"}
             </button>
           </div>
         </div>

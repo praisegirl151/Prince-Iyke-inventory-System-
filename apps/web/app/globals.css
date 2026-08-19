@@ -737,6 +737,11 @@ input.cart-price-input {
   margin: 0 4px;
 }
 
+/* Hide small receipt on screen */
+.ticket.small-receipt {
+  display: none !important;
+}
+
 /* ---------- Receipt ticket / Invoice A4 ---------- */
 .ticket {
   background: #fff;
@@ -1336,6 +1341,43 @@ input.cart-price-input {
   .inv-settle-box {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+
+  /* Small thermal receipt overrides */
+  body.print-small-active .invoice-a4 {
+    display: none !important;
+  }
+  body.print-small-active .ticket.small-receipt {
+    display: block !important;
+    width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 10px 4px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    font-size: 11px !important;
+    color: #000 !important;
+  }
+  body.print-small-active .ticket.small-receipt * {
+    font-family: var(--font-mono) !important;
+  }
+  body.print-small-active .ticket-row,
+  body.print-small-active .ticket-item-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  body.print-small-active .ticket-shop {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+  }
+  body.print-small-active .ticket-sub {
+    font-size: 10px !important;
+  }
+
+  body:not(.print-small-active) .ticket.small-receipt {
+    display: none !important;
   }
 }
 
