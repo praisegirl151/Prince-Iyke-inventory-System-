@@ -36,11 +36,7 @@ export function errorHandler(
   console.error("Internal Server Error:", error);
   res
     .status(500)
-    .json({ 
-      error: "INTERNAL_ERROR", 
-      message: error instanceof Error ? error.message : "Unexpected server error",
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    .json({ error: "INTERNAL_ERROR", message: "Unexpected server error" });
 }
 
 export function jsonSafe(value: unknown) {
